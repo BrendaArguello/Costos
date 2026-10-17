@@ -230,32 +230,9 @@
                 </section>
 
                 <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h2 class="text-lg font-bold text-blue-950 mb-4">Plantilla de Trabajadores y Costo Hora Hombre (CHH)</h2>
-                    <div class="overflow-x-auto">
-                        <table class="w-full border-collapse border border-slate-300 text-xs text-center">
-                            <thead class="bg-blue-950 text-white font-bold">
-                                <tr>
-                                    <th class="border border-slate-300 p-2 text-left">Puesto / Trabajador</th>
-                                    <th class="border border-slate-300 p-2">Fecha Ingreso</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Contrato</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Percepción Base</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Jornada</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Vac.</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Faltas</th>
-                                    <th class="border border-slate-300 p-2 bg-slate-700">Días Libres (Ley)</th>
-                                    <th class="border border-slate-300 p-2 bg-blue-800">Días Lab. Totales</th>
-                                    <th class="border border-slate-300 p-2">Sueldo Diario Real</th>
-                                    <th class="border border-slate-300 p-2">Sueldo Anual</th>
-                                    <th class="border border-slate-300 p-2">Subtotal Ley</th>
-                                    <th class="border border-slate-300 p-2">Cargas Patronales</th>
-                                    <th class="border border-slate-300 p-2">Salario Int. Anual</th>
-                                    <th class="border border-slate-300 p-2 bg-blue-900">Salario Int. Diario</th>
-                                    <th class="border border-slate-300 p-2 bg-emerald-700 text-white">CHH ($)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="workers-table-body" class="divide-y divide-slate-200"></tbody>
-                        </table>
-                    </div>
+                    <h2 class="text-lg font-bold text-blue-950 mb-4">Historial de Reportes de Plantilla y Costo Hora Hombre (CHH)</h2>
+                    <!-- Este es el nuevo contenedor donde se crearán múltiples tablas -->
+                    <div id="workers-reports-container" class="space-y-8"></div>
                 </section>
             </div>
 
@@ -327,7 +304,7 @@
 
                     <!-- 1. PRORRATEO PRIMARIO -->
                     <div class="space-y-3 mb-8">
-                        <h3 class="font-bold text-sm text-blue-900 border-b pb-1">1. PRORRATEO PRIMARIO (Distribución entre Departamentos por 215 m^2$ e Instalaciones)</h3>
+                        <h3 class="font-bold text-sm text-blue-900 border-b pb-1">1. PRORRATEO PRIMARIO (Distribución entre Departamentos por 215 m^2 e Instalaciones)</h3>
                         <div class="overflow-x-auto">
                             <table class="w-full border-collapse border border-slate-300 text-xs text-center">
                                 <thead class="bg-slate-800 text-white font-bold">
@@ -483,11 +460,11 @@
                         <!-- METRICAS DE COSTO SEGÚN APUNTES -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
                             <div class="p-3.5 bg-slate-50 border rounded-lg space-y-1">
-                                <span class="font-bold text-slate-700 text-xs uppercase">Costo Primo (MP + MO)[cite: 3]</span>
+                                <span class="font-bold text-slate-700 text-xs uppercase">Costo Primo (MP + MO)</span>
                                 <p id="lbl-costo-primo" class="text-2xl font-extrabold text-blue-900">$0.00 MXN</p>
                             </div>
                             <div class="p-3.5 bg-slate-50 border rounded-lg space-y-1">
-                                <span class="font-bold text-slate-700 text-xs uppercase">Costo de Transformación (MO + GIF)[cite: 3]</span>
+                                <span class="font-bold text-slate-700 text-xs uppercase">Costo de Transformación (MO + GIF)</span>
                                 <p id="lbl-costo-transformacion" class="text-2xl font-extrabold text-indigo-900">$0.00 MXN</p>
                             </div>
                         </div>
@@ -496,7 +473,7 @@
                         <div class="p-5 bg-blue-950 text-white rounded-xl flex justify-between items-center shadow-lg gap-4">
                             <div>
                                 <h4 id="lbl-cedula-titulo-prod" class="font-black text-lg">👓 COSTO UNITARIO TOTAL DE FABRICACIÓN - LENTE GRADUADO</h4>
-                                <p class="text-xs text-blue-300 font-medium">Fórmula: Costo Total = MPD + MOD + GIF Prorrateado[cite: 3]</p>
+                                <p class="text-xs text-blue-300 font-medium">Fórmula: Costo Total = MPD + MOD + GIF Prorrateado</p>
                                 <span class="text-[10px] text-blue-400 mt-1 block">Sello Digital de Validación Auditada</span>
                             </div>
                             
@@ -609,7 +586,7 @@
         window.fs = { collection, addDoc, getDocs, query, where, doc, updateDoc };
     </script>
 
-    <script src="js/engine.js"></script>
-    <script src="js/app.js"></script>
+    <script src="engine.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
