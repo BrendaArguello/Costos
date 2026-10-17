@@ -6,7 +6,6 @@ const state = {
     movements: {},
     globalMethod: 'PEPS',
     isProcesosLocked: true,
-    // Generamos un ID de sesión único cada vez que se carga la página
     sessionId: `Sesión del ${new Date().toLocaleDateString('es-MX')} - ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'})}`
 };
 
@@ -111,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. REGISTRO DE PROCESOS POR RUTA DE PRODUCTO
+    // 6. REGISTRO DE PROCESOS
     document.getElementById('process-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (state.isProcesosLocked) {
@@ -193,7 +192,6 @@ function renderProcesosModule() {
 
     let htmlOperadoresOpts = '<option value="">-- Sin Operador Asignado --</option>';
     state.workers.forEach(w => {
-        // Blindaje para evitar que los trabajadores antiguos rompan el menú desplegable
         const chhProtegido = w.chh || 0;
         htmlOperadoresOpts += `<option value="${w.id}">${w.name} (CHH: $${chhProtegido.toFixed(2)})</option>`;
     });
@@ -433,20 +431,115 @@ window.actualizarCedulaProducto = function() {
     document.getElementById('lbl-costo-transformacion').innerText = `$${costoTransformacion.toFixed(2)} MXN`;
     document.getElementById('lbl-cedula-costo-final').innerText = `$${costoFinal.toFixed(2)} MXN`;
 
+    // AQUI ES LA REPARACIÓN DEL QR
     const qrContainer = document.getElementById('qrcode-container');
     if (qrContainer && window.QRCode) {
         qrContainer.innerHTML = '';
-        const qrData = `OptiCost ERP | Cédula Validada: ${key.toUpperCase()} | Costo Total Unitario: $${costoFinal.toFixed(2)} MXN (MP: $${totalMP.toFixed(2)}, MO: $${totalMO.toFixed(2)}, GIF: $${totalGIF.toFixed(2)}) | Fecha: ${new Date().toLocaleDateString()}`;
-        new QRCode(qrContainer, {
-            text: qrData,
-            width: 64,
-            height: 64,
-            colorDark : "#0f172a",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
+        // Hacemos el texto más corto para que no explote
+        const qrData = `OptiCost | Prod: ${key.toUpperCase()} | Tot: $${costoFinal.toFixed(2)} | F: ${new Date().toLocaleDateString()}`;
+        
+        try {
+            new QRCode(qrContainer, {
+                text: qrData,
+                width: 96, // Lo hacemos un poco más grande
+                height: 96,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.L // Nivel de corrección bajo para datos largos
+            });
+        } catch (e) {
+            console.warn("No se pudo generar el QR", e);
+        }
     }
 };
+
+// =========================================================================
+// AQUI ESTA LA FUNCIÓN QUE TE FALTABA PARA VER LA MATERIA PRIMA
+// =========================================================================
+async function renderAllCards() {
+    const container = document.getElementById('cards-container');
+    if (!container) return;
+
+    if (state.products.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center border border-dashed border-slate-300 rounded-lg bg-slate-50"><p class="text-sm text-slate-500">No hay insumos ni tarjetas registradas.</p></div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+
+    for (const product of state.products) {
+        if (!state.movements[product.id]) {
+            await loadMovementsFromFirebase(product.id);
+        }
+
+        const productWithGlobalMethod = { ...product, metodo: state.globalMethod };
+        const rawMovements = state.movements[product.id] || [];
+        const { rows, totalDebe, totalHaber, saldoFinal } = InventoryEngine.processMovements(productWithGlobalMethod, rawMovements);
+
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = "border border-slate-300 rounded-xl overflow-hidden shadow-sm bg-white mb-6 report-card";
+
+        let rowsHTML = '';
+        rows.forEach(r => {
+            rowsHTML += `
+                <tr class="${r.isSubRow ? 'row-sub border-b border-slate-200' : 'row-main border-b border-slate-300'}">
+                    <td class="border border-slate-300 p-2">${r.fecha}</td>
+                    <td class="border border-slate-300 p-2">${r.ref}</td>
+                    <td class="border border-slate-300 p-2 text-left">${r.concepto}</td>
+                    <td class="border border-slate-300 p-2 font-semibold">${r.entradas}</td>
+                    <td class="border border-slate-300 p-2 text-red-700 font-semibold">${r.salidas}</td>
+                    <td class="border border-slate-300 p-2 font-bold">${r.existencia} ${product.unit}</td>
+                    <td class="border border-slate-300 p-2">${r.costoUnitario ? '$' + r.costoUnitario : ''}</td>
+                    <td class="border border-slate-300 p-2">${r.debe ? '$' + r.debe : ''}</td>
+                    <td class="border border-slate-300 p-2">${r.haber ? '$' + r.haber : ''}</td>
+                    <td class="border border-slate-300 p-2 font-bold text-blue-950">$${r.saldo}</td>
+                </tr>`;
+        });
+
+        cardWrapper.innerHTML = `
+            <div class="bg-slate-100 px-4 py-3 border-b border-slate-300 flex justify-between items-center">
+                <div>
+                    <h3 class="font-bold text-base text-blue-950">${product.name}</h3>
+                    <p class="text-xs text-slate-500">Unidad: <span class="font-semibold text-slate-700">${product.unit}</span></p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-1 bg-blue-950 text-white font-bold text-xs rounded-lg">${state.globalMethod}</span>
+                    <button onclick="printSpecificReport(this, 'Tarjeta de Almacén - ${product.name}')" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded-lg transition font-bold">Imprimir</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse border border-slate-300 text-xs text-center">
+                    <thead class="bg-blue-950 text-white font-bold">
+                        <tr>
+                            <th class="border border-slate-300 p-2">Fecha</th>
+                            <th class="border border-slate-300 p-2">Ref</th>
+                            <th class="border border-slate-300 p-2">Concepto</th>
+                            <th class="border border-slate-300 p-2">Entradas</th>
+                            <th class="border border-slate-300 p-2">Salidas</th>
+                            <th class="border border-slate-300 p-2">Existencia</th>
+                            <th class="border border-slate-300 p-2">Cto Ut</th>
+                            <th class="border border-slate-300 p-2">Debe</th>
+                            <th class="border border-slate-300 p-2">Haber</th>
+                            <th class="border border-slate-300 p-2">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">${rowsHTML || '<tr><td colspan="10" class="p-3 text-slate-400">Sin movimientos registrados</td></tr>'}</tbody>
+                    <tfoot class="bg-slate-100 font-bold border-t-2 border-slate-400">
+                        <tr>
+                            <td colspan="7" class="border border-slate-300 p-2 text-right">TOTALES / SALDO FINAL:</td>
+                            <td class="border border-slate-300 p-2 text-blue-950">$${totalDebe.toFixed(2)}</td>
+                            <td class="border border-slate-300 p-2 text-blue-950">$${totalHaber.toFixed(2)}</td>
+                            <td class="border border-slate-300 p-2 text-blue-950 font-black">$${saldoFinal.toFixed(2)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`;
+
+        container.appendChild(cardWrapper);
+    }
+}
+// =========================================================================
 
 async function loadProductsFromFirebase() {
     try {
@@ -469,9 +562,6 @@ async function loadProductsFromFirebase() {
     }
 }
 
-// -----------------------------------------------------------------------------------
-// CARGA DE TRABAJADORES (BLINDADA CONTRA DATOS ANTIGUOS VACÍOS)
-// -----------------------------------------------------------------------------------
 async function loadWorkersFromFirebase() {
     try {
         const querySnapshot = await window.fs.getDocs(window.fs.collection(window.db, "trabajadores"));
@@ -481,7 +571,6 @@ async function loadWorkersFromFirebase() {
             state.workers.push({ id: doc.id, ...doc.data() });
         });
 
-        // Ordenamos los trabajadores cronológicamente
         state.workers.sort((a, b) => {
             const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
             const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
@@ -504,7 +593,6 @@ async function loadWorkersFromFirebase() {
                 
                 let tbodyHTML = '';
                 workersInGroup.forEach(w => {
-                    // Protecciones contra datos antiguos vacíos para que no rompa la app
                     const pBase = w.percepcionBase || w.dailyWage || 0;
                     const dWage = w.dailyWage || 0;
                     
@@ -536,11 +624,11 @@ async function loadWorkersFromFirebase() {
                     : '';
 
                 const tableHTML = `
-                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm mb-8">
+                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm mb-8 report-card">
                         <div class="bg-slate-100 px-4 py-3 border-b border-slate-300 flex justify-between items-center">
                             <h3 class="font-bold text-slate-800 text-sm">📋 Grupo de Alta: <span class="font-medium text-slate-600">${sessionKey}</span> ${titleBadge}</h3>
-                            <button onclick="window.print()" class="text-xs bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-bold shadow-sm">
-                                🖨️ Imprimir
+                            <button onclick="printSpecificReport(this, 'Reporte de Nómina LFT')" class="text-xs bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-bold shadow-sm">
+                                🖨️ Imprimir Reporte
                             </button>
                         </div>
                         <div class="overflow-x-auto">
@@ -712,3 +800,49 @@ document.getElementById('worker-form')?.addEventListener('submit', async (e) => 
         console.error("Error al guardar trabajador:", error);
     }
 });
+
+// IMPRESIÓN INDIVIDUAL
+window.printSpecificReport = function(btn, tituloReporte = "Documento") {
+    const reportCard = btn.closest('.report-card');
+    const clone = reportCard.cloneNode(true);
+    const btns = clone.querySelectorAll('button');
+    btns.forEach(b => b.remove());
+
+    const printWindow = window.open('', '_blank');
+    if(!printWindow) {
+        alert("Tu navegador bloqueó la ventana de impresión. Por favor, permite las ventanas emergentes (pop-ups) para imprimir.");
+        return;
+    }
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <title>${tituloReporte}</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+                body { padding: 40px; font-family: sans-serif; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                table { page-break-inside: auto; }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+            </style>
+        </head>
+        <body>
+            <div class="mb-6 border-b-2 border-slate-300 pb-2">
+                <h2 class="text-2xl font-black text-blue-950">OptiCost ERP</h2>
+                <p class="text-sm text-slate-600 font-bold">${tituloReporte} | Emitido: ${new Date().toLocaleDateString('es-MX')} a las ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'})}</p>
+            </div>
+            
+            ${clone.outerHTML}
+
+            <script>
+                setTimeout(() => {
+                    window.print();
+                    window.close();
+                }, 1000);
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
