@@ -193,7 +193,9 @@ function renderProcesosModule() {
 
     let htmlOperadoresOpts = '<option value="">-- Sin Operador Asignado --</option>';
     state.workers.forEach(w => {
-        htmlOperadoresOpts += `<option value="${w.id}">${w.name} (CHH: $${w.chh.toFixed(2)})</option>`;
+        // Blindaje para evitar que los trabajadores antiguos rompan el menú desplegable
+        const chhProtegido = w.chh || 0;
+        htmlOperadoresOpts += `<option value="${w.id}">${w.name} (CHH: $${chhProtegido.toFixed(2)})</option>`;
     });
 
     let htmlCards = '';
@@ -468,7 +470,7 @@ async function loadProductsFromFirebase() {
 }
 
 // -----------------------------------------------------------------------------------
-// FUNCIÓN MODIFICADA: Carga de trabajadores agrupada por sesión para historiales
+// CARGA DE TRABAJADORES (BLINDADA CONTRA DATOS ANTIGUOS VACÍOS)
 // -----------------------------------------------------------------------------------
 async function loadWorkersFromFirebase() {
     try {
@@ -479,7 +481,7 @@ async function loadWorkersFromFirebase() {
             state.workers.push({ id: doc.id, ...doc.data() });
         });
 
-        // Ordenamos los trabajadores cronológicamente (los más antiguos primero)
+        // Ordenamos los trabajadores cronológicamente
         state.workers.sort((a, b) => {
             const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
             const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
@@ -490,7 +492,6 @@ async function loadWorkersFromFirebase() {
         if (container) {
             container.innerHTML = '';
             
-            // Agrupamos a los trabajadores según la sesión en la que fueron creados
             const groups = {};
             state.workers.forEach(w => {
                 const key = w.session || "Reporte Histórico Anterior";
@@ -498,34 +499,36 @@ async function loadWorkersFromFirebase() {
                 groups[key].push(w);
             });
 
-            // Inyectamos una tabla por cada grupo / sesión
             Object.keys(groups).forEach((sessionKey) => {
                 const workersInGroup = groups[sessionKey];
                 
                 let tbodyHTML = '';
                 workersInGroup.forEach(w => {
+                    // Protecciones contra datos antiguos vacíos para que no rompa la app
+                    const pBase = w.percepcionBase || w.dailyWage || 0;
+                    const dWage = w.dailyWage || 0;
+                    
                     tbodyHTML += `
                         <tr class="border-b border-slate-300 whitespace-nowrap">
-                            <td class="p-2 border font-bold text-left">${w.name}</td>
-                            <td class="p-2 border text-slate-600">${w.startDate || 'No registrada'}</td>
+                            <td class="p-2 border font-bold text-left">${w.name || 'Sin nombre'}</td>
+                            <td class="p-2 border text-slate-600">${w.startDate || 'N/A'}</td>
                             <td class="p-2 border bg-blue-50 font-bold">${w.tipoContrato || 'Diario'}</td>
-                            <td class="p-2 border bg-slate-50 font-semibold">$${(w.percepcionBase || w.dailyWage).toFixed(2)}</td>
+                            <td class="p-2 border bg-slate-50 font-semibold">$${pBase.toFixed(2)}</td>
                             <td class="p-2 border bg-slate-50">${w.tipoJornada || 'Diurna'} (${w.jornada || 8}h)</td>
                             <td class="p-2 border bg-slate-50 font-semibold">${w.diasVacaciones !== undefined ? w.diasVacaciones : 12}</td>
                             <td class="p-2 border bg-slate-50 text-red-600 font-semibold">${w.faltas || 0}</td>
                             <td class="p-2 border bg-slate-50 text-slate-500">${w.diasLibresLey || 59}</td>
                             <td class="p-2 border bg-blue-50 font-black text-blue-900">${w.diasLab !== undefined ? w.diasLab : 302}</td>
-                            <td class="p-2 border font-bold text-indigo-900">$${w.dailyWage.toFixed(2)}</td>
-                            <td class="p-2 border">$${w.sueldoAnual.toFixed(2)}</td>
-                            <td class="p-2 border">$${w.subtotalLey.toFixed(2)}</td>
-                            <td class="p-2 border">$${w.cargasPatronales.toFixed(2)}</td>
-                            <td class="p-2 border text-slate-500 font-semibold">$${w.salarioIntegradoAnual.toFixed(2)}</td>
-                            <td class="p-2 border bg-slate-100 font-bold">$${w.salarioIntegradoDiario.toFixed(2)}</td>
-                            <td class="p-2 border bg-emerald-100 text-emerald-900 font-extrabold">$${w.chh.toFixed(2)}</td>
+                            <td class="p-2 border font-bold text-indigo-900">$${dWage.toFixed(2)}</td>
+                            <td class="p-2 border">$${(w.sueldoAnual || 0).toFixed(2)}</td>
+                            <td class="p-2 border">$${(w.subtotalLey || 0).toFixed(2)}</td>
+                            <td class="p-2 border">$${(w.cargasPatronales || 0).toFixed(2)}</td>
+                            <td class="p-2 border text-slate-500 font-semibold">$${(w.salarioIntegradoAnual || 0).toFixed(2)}</td>
+                            <td class="p-2 border bg-slate-100 font-bold">$${(w.salarioIntegradoDiario || 0).toFixed(2)}</td>
+                            <td class="p-2 border bg-emerald-100 text-emerald-900 font-extrabold">$${(w.chh || 0).toFixed(2)}</td>
                         </tr>`;
                 });
 
-                // Si la sesión iterada es la misma que la sesión actual, le ponemos un badge verde
                 const isCurrentSession = (sessionKey === state.sessionId);
                 const headerClass = isCurrentSession ? 'bg-blue-950' : 'bg-slate-700';
                 const titleBadge = isCurrentSession 
@@ -533,7 +536,7 @@ async function loadWorkersFromFirebase() {
                     : '';
 
                 const tableHTML = `
-                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm mb-8">
                         <div class="bg-slate-100 px-4 py-3 border-b border-slate-300 flex justify-between items-center">
                             <h3 class="font-bold text-slate-800 text-sm">📋 Grupo de Alta: <span class="font-medium text-slate-600">${sessionKey}</span> ${titleBadge}</h3>
                             <button onclick="window.print()" class="text-xs bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-bold shadow-sm">
@@ -567,7 +570,6 @@ async function loadWorkersFromFirebase() {
                         </div>
                     </div>
                 `;
-                // Insertamos el nuevo bloque en el contenedor
                 container.innerHTML += tableHTML;
             });
         }
@@ -621,90 +623,6 @@ function updateProductDropdowns() {
     state.products.forEach(p => {
         movProductSelect.add(new Option(`${p.name}`, p.id));
     });
-}
-
-async function renderAllCards() {
-    const container = document.getElementById('cards-container');
-    if (!container) return;
-
-    if (state.products.length === 0) {
-        container.innerHTML = `<div class="p-6 text-center border border-dashed border-slate-300 rounded-lg bg-slate-50"><p class="text-sm text-slate-500">No hay insumos ni tarjetas registradas.</p></div>`;
-        return;
-    }
-
-    container.innerHTML = '';
-
-    for (const product of state.products) {
-        if (!state.movements[product.id]) {
-            await loadMovementsFromFirebase(product.id);
-        }
-
-        const productWithGlobalMethod = { ...product, metodo: state.globalMethod };
-        const rawMovements = state.movements[product.id] || [];
-        const { rows, totalDebe, totalHaber, saldoFinal } = InventoryEngine.processMovements(productWithGlobalMethod, rawMovements);
-
-        const cardWrapper = document.createElement('div');
-        cardWrapper.className = "border border-slate-300 rounded-xl overflow-hidden shadow-sm bg-white mb-6";
-
-        let rowsHTML = '';
-        rows.forEach(r => {
-            rowsHTML += `
-                <tr class="${r.isSubRow ? 'row-sub border-b border-slate-200' : 'row-main border-b border-slate-300'}">
-                    <td class="border border-slate-300 p-2">${r.fecha}</td>
-                    <td class="border border-slate-300 p-2">${r.ref}</td>
-                    <td class="border border-slate-300 p-2 text-left">${r.concepto}</td>
-                    <td class="border border-slate-300 p-2 font-semibold">${r.entradas}</td>
-                    <td class="border border-slate-300 p-2 text-red-700 font-semibold">${r.salidas}</td>
-                    <td class="border border-slate-300 p-2 font-bold">${r.existencia} ${product.unit}</td>
-                    <td class="border border-slate-300 p-2">${r.costoUnitario ? '$' + r.costoUnitario : ''}</td>
-                    <td class="border border-slate-300 p-2">${r.debe ? '$' + r.debe : ''}</td>
-                    <td class="border border-slate-300 p-2">${r.haber ? '$' + r.haber : ''}</td>
-                    <td class="border border-slate-300 p-2 font-bold text-blue-950">$${r.saldo}</td>
-                </tr>`;
-        });
-
-        cardWrapper.innerHTML = `
-            <div class="bg-slate-100 px-4 py-3 border-b border-slate-300 flex justify-between items-center">
-                <div>
-                    <h3 class="font-bold text-base text-blue-950">${product.name}</h3>
-                    <p class="text-xs text-slate-500">Unidad: <span class="font-semibold text-slate-700">${product.unit}</span></p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-1 bg-blue-950 text-white font-bold text-xs rounded-lg">${state.globalMethod}</span>
-                    <button onclick="window.print()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded-lg transition font-bold">Imprimir</button>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse border border-slate-300 text-xs text-center">
-                    <thead class="bg-blue-950 text-white font-bold">
-                        <tr>
-                            <th class="border border-slate-300 p-2">Fecha</th>
-                            <th class="border border-slate-300 p-2">Ref</th>
-                            <th class="border border-slate-300 p-2">Concepto</th>
-                            <th class="border border-slate-300 p-2">Entradas</th>
-                            <th class="border border-slate-300 p-2">Salidas</th>
-                            <th class="border border-slate-300 p-2">Existencia</th>
-                            <th class="border border-slate-300 p-2">Cto Ut</th>
-                            <th class="border border-slate-300 p-2">Debe</th>
-                            <th class="border border-slate-300 p-2">Haber</th>
-                            <th class="border border-slate-300 p-2">Saldo</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">${rowsHTML || '<tr><td colspan="10" class="p-3 text-slate-400">Sin movimientos registrados</td></tr>'}</tbody>
-                    <tfoot class="bg-slate-100 font-bold border-t-2 border-slate-400">
-                        <tr>
-                            <td colspan="7" class="border border-slate-300 p-2 text-right">TOTALES / SALDO FINAL:</td>
-                            <td class="border border-slate-300 p-2 text-blue-950">$${totalDebe.toFixed(2)}</td>
-                            <td class="border border-slate-300 p-2 text-blue-950">$${totalHaber.toFixed(2)}</td>
-                            <td class="border border-slate-300 p-2 text-blue-950 font-black">$${saldoFinal.toFixed(2)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>`;
-
-        container.appendChild(cardWrapper);
-    }
 }
 
 function calcularDiasVacaciones(fechaIngreso) {
@@ -783,9 +701,6 @@ document.getElementById('worker-form')?.addEventListener('submit', async (e) => 
         dailyWage, 
         ...calc, 
         createdAt: new Date(), 
-        // --------------------------------------------------------------------------------
-        // AQUÍ SE GUARDA LA SESIÓN EN LA QUE FUE CREADO PARA MANTENER EL HISTORIAL
-        // --------------------------------------------------------------------------------
         session: state.sessionId 
     };
 
