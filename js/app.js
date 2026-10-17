@@ -5,7 +5,9 @@ const state = {
     processes: [],
     movements: {},
     globalMethod: 'PEPS',
-    isProcesosLocked: true
+    isProcesosLocked: true,
+    // Generamos un ID de sesión único cada vez que se carga la página
+    sessionId: `Sesión del ${new Date().toLocaleDateString('es-MX')} - ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'})}`
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -122,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const machineCost = parseFloat(document.getElementById('proc-machine-cost').value) || 0;
         const time = parseFloat(document.getElementById('proc-time').value);
 
-        // ESTE ES EL ÚNICO newProc QUE DEBE QUEDAR:
         const newProc = { productKey, name, machine, machineCost, time, assignedWorkerId: null, createdAt: new Date() };
 
         try {
@@ -158,7 +159,6 @@ window.switchModule = function(moduleName) {
     if (moduleName === 'reportes') actualizarCedulaProducto();
 };
 
-// BLOQUEO Y DESBLOQUEO DE PROCESOS (ESTILO ERP REAL)
 window.toggleLockProcesos = function() {
     state.isProcesosLocked = !state.isProcesosLocked;
     renderProcesosModule();
@@ -239,19 +239,17 @@ window.asignarTrabajadorProceso = async function(processId, workerId) {
     }
 };
 
-// CÁLCULO DINÁMICO DE PRORRATEO PRIMARIO, SECUNDARIO Y FINAL (APUNTES Y EXCEL)
 function calcularYRenderizarProrrateos() {
     const m2 = { Produc: 110, Admon: 40, Ventas: 15, RH: 10, Distr: 40 };
     const totalM2 = 215;
 
-    // 1. Primario
     const rentaTotal = 50000;
     const factorRenta = rentaTotal / totalM2;
     const renta = {}; Object.keys(m2).forEach(k => renta[k] = m2[k] * factorRenta);
 
     const eeTotal = 22000;
-    const eeFM = eeTotal * 0.72; // $15,840 a producción
-    const eeIlum = eeTotal * 0.28; // $6,160 por m2
+    const eeFM = eeTotal * 0.72; 
+    const eeIlum = eeTotal * 0.28; 
     const factorIlum = eeIlum / totalM2;
     const ee = {}; Object.keys(m2).forEach(k => ee[k] = (m2[k] * factorIlum) + (k === 'Produc' ? eeFM : 0));
 
@@ -267,7 +265,6 @@ function calcularYRenderizarProrrateos() {
         primarioTotales[k] = renta[k] + ee[k] + agua[k] + gasolina[k] + licencias[k];
     });
 
-    // Render Primario
     const tbodyPrimario = document.getElementById('tb-prorrateo-primario');
     if (tbodyPrimario) {
         tbodyPrimario.innerHTML = `
@@ -289,7 +286,6 @@ function calcularYRenderizarProrrateos() {
         `;
     }
 
-    // 2. Secundario
     const rhMonto = primarioTotales.RH;
     const emp = { Produc: 12, Ventas: 3, Distr: 3, Admon: 2 };
     const factorRH = rhMonto / 18;
@@ -314,8 +310,6 @@ function calcularYRenderizarProrrateos() {
         `;
     }
 
-    // 3. Final
-    // 3. Final - Modificado para no romper si no existe el HTML de Opción B
     const gifTotalProduccion = primarioTotales.Produc + rhDist.Produc + admonDist.Produc;
     const cuotaPorUnidad = gifTotalProduccion / 1000;
     const cuotaPorHora = gifTotalProduccion / 1450;
@@ -329,13 +323,12 @@ function calcularYRenderizarProrrateos() {
     return { gifTotalProduccion, cuotaPorUnidad, cuotaPorHora };
 }
 
-// CÉDULA DE INTEGRACIÓN TOTAL
 window.actualizarCedulaProducto = function() {
     const selectElem = document.getElementById('select-producto-costeo');
     if (!selectElem) return;
 
     const key = selectElem.value;
-    const { cuotaPorUnidad } = calcularYRenderizarProrrateos(); // VARIABLE CORREGIDA
+    const { cuotaPorUnidad } = calcularYRenderizarProrrateos();
 
     function getCostoMP(keywords, defaultVal) {
         const prod = state.products.find(p => keywords.some(k => p.name.toLowerCase().includes(k.toLowerCase())));
@@ -364,7 +357,6 @@ window.actualizarCedulaProducto = function() {
         ]
     };
 
-    // 1. RENDER MP
     const tbodyMP = document.getElementById('tb-cedula-mp');
     let totalMP = 0;
     if (tbodyMP) {
@@ -386,7 +378,6 @@ window.actualizarCedulaProducto = function() {
         document.getElementById('lbl-cedula-total-mp').innerText = `$${totalMP.toFixed(2)}`;
     }
 
-    // 2. RENDER MO FILTRADO POR RUTA REAL DEL PRODUCTO
     const tbodyMO = document.getElementById('tb-cedula-mo');
     let totalMO = 0;
     let tiempoTotalHoras = 0;
@@ -421,8 +412,7 @@ window.actualizarCedulaProducto = function() {
         document.getElementById('lbl-cedula-total-mo').innerText = `$${totalMO.toFixed(2)}`;
     }
 
-    // 3. RENDER GIF (PRORRATEADO) - Adaptado a Opción A
-    const totalGIF = cuotaPorUnidad * 1; // 1 unidad producida del lote
+    const totalGIF = cuotaPorUnidad * 1; 
     
     const lblGifTasa = document.getElementById('lbl-cedula-gif-tasa');
     if (lblGifTasa) lblGifTasa.innerText = `$${cuotaPorUnidad.toFixed(2)} / pza`;
@@ -433,7 +423,6 @@ window.actualizarCedulaProducto = function() {
     const lblTotalGif = document.getElementById('lbl-cedula-total-gif');
     if (lblTotalGif) lblTotalGif.innerText = `$${totalGIF.toFixed(2)}`;
 
-    // METRICAS DE APUNTES
     const costoPrimo = totalMP + totalMO;
     const costoTransformacion = totalMO + totalGIF;
     const costoFinal = totalMP + totalMO + totalGIF;
@@ -442,7 +431,6 @@ window.actualizarCedulaProducto = function() {
     document.getElementById('lbl-costo-transformacion').innerText = `$${costoTransformacion.toFixed(2)} MXN`;
     document.getElementById('lbl-cedula-costo-final').innerText = `$${costoFinal.toFixed(2)} MXN`;
 
-    // REGENERAR CÓDIGO QR INDUSTRIAL CON LA INFORMACIÓN DEL COSTO
     const qrContainer = document.getElementById('qrcode-container');
     if (qrContainer && window.QRCode) {
         qrContainer.innerHTML = '';
@@ -458,7 +446,6 @@ window.actualizarCedulaProducto = function() {
     }
 };
 
-// FIRESTORE Y CONTROLADORES
 async function loadProductsFromFirebase() {
     try {
         const querySnapshot = await window.fs.getDocs(window.fs.collection(window.db, "productos"));
@@ -480,40 +467,110 @@ async function loadProductsFromFirebase() {
     }
 }
 
+// -----------------------------------------------------------------------------------
+// FUNCIÓN MODIFICADA: Carga de trabajadores agrupada por sesión para historiales
+// -----------------------------------------------------------------------------------
 async function loadWorkersFromFirebase() {
     try {
         const querySnapshot = await window.fs.getDocs(window.fs.collection(window.db, "trabajadores"));
         state.workers = [];
-        const tbody = document.getElementById('workers-table-body');
-        if (tbody) tbody.innerHTML = '';
-
+        
         querySnapshot.forEach((doc) => {
-            const w = { id: doc.id, ...doc.data() };
-            state.workers.push(w);
-
-            if (tbody) {
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-slate-300 whitespace-nowrap"; // Mantiene las celdas en una sola línea
-                tr.innerHTML = `
-                    <td class="p-2 border font-bold text-left">${w.name}</td>
-                    <td class="p-2 border text-slate-600">${w.startDate || 'No registrada'}</td>
-                    <td class="p-2 border bg-blue-50 font-bold">${w.tipoContrato || 'Diario'}</td>
-                    <td class="p-2 border bg-slate-50 font-semibold">$${(w.percepcionBase || w.dailyWage).toFixed(2)}</td>
-                    <td class="p-2 border bg-slate-50">${w.tipoJornada || 'Diurna'} (${w.jornada || 8}h)</td>
-                    <td class="p-2 border bg-slate-50 font-semibold">${w.diasVacaciones !== undefined ? w.diasVacaciones : 12}</td>
-                    <td class="p-2 border bg-slate-50 text-red-600 font-semibold">${w.faltas || 0}</td>
-                    <td class="p-2 border bg-slate-50 text-slate-500">${w.diasLibresLey || 59}</td>
-                    <td class="p-2 border bg-blue-50 font-black text-blue-900">${w.diasLab !== undefined ? w.diasLab : 302}</td>
-                    <td class="p-2 border font-bold text-indigo-900">$${w.dailyWage.toFixed(2)}</td>
-                    <td class="p-2 border">$${w.sueldoAnual.toFixed(2)}</td>
-                    <td class="p-2 border">$${w.subtotalLey.toFixed(2)}</td>
-                    <td class="p-2 border">$${w.cargasPatronales.toFixed(2)}</td>
-                    <td class="p-2 border text-slate-500 font-semibold">$${w.salarioIntegradoAnual.toFixed(2)}</td>
-                    <td class="p-2 border bg-slate-100 font-bold">$${w.salarioIntegradoDiario.toFixed(2)}</td>
-                    <td class="p-2 border bg-emerald-100 text-emerald-900 font-extrabold">$${w.chh.toFixed(2)}</td>`;
-                tbody.appendChild(tr);
-            }
+            state.workers.push({ id: doc.id, ...doc.data() });
         });
+
+        // Ordenamos los trabajadores cronológicamente (los más antiguos primero)
+        state.workers.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return dateA - dateB;
+        });
+
+        const container = document.getElementById('workers-reports-container');
+        if (container) {
+            container.innerHTML = '';
+            
+            // Agrupamos a los trabajadores según la sesión en la que fueron creados
+            const groups = {};
+            state.workers.forEach(w => {
+                const key = w.session || "Reporte Histórico Anterior";
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(w);
+            });
+
+            // Inyectamos una tabla por cada grupo / sesión
+            Object.keys(groups).forEach((sessionKey) => {
+                const workersInGroup = groups[sessionKey];
+                
+                let tbodyHTML = '';
+                workersInGroup.forEach(w => {
+                    tbodyHTML += `
+                        <tr class="border-b border-slate-300 whitespace-nowrap">
+                            <td class="p-2 border font-bold text-left">${w.name}</td>
+                            <td class="p-2 border text-slate-600">${w.startDate || 'No registrada'}</td>
+                            <td class="p-2 border bg-blue-50 font-bold">${w.tipoContrato || 'Diario'}</td>
+                            <td class="p-2 border bg-slate-50 font-semibold">$${(w.percepcionBase || w.dailyWage).toFixed(2)}</td>
+                            <td class="p-2 border bg-slate-50">${w.tipoJornada || 'Diurna'} (${w.jornada || 8}h)</td>
+                            <td class="p-2 border bg-slate-50 font-semibold">${w.diasVacaciones !== undefined ? w.diasVacaciones : 12}</td>
+                            <td class="p-2 border bg-slate-50 text-red-600 font-semibold">${w.faltas || 0}</td>
+                            <td class="p-2 border bg-slate-50 text-slate-500">${w.diasLibresLey || 59}</td>
+                            <td class="p-2 border bg-blue-50 font-black text-blue-900">${w.diasLab !== undefined ? w.diasLab : 302}</td>
+                            <td class="p-2 border font-bold text-indigo-900">$${w.dailyWage.toFixed(2)}</td>
+                            <td class="p-2 border">$${w.sueldoAnual.toFixed(2)}</td>
+                            <td class="p-2 border">$${w.subtotalLey.toFixed(2)}</td>
+                            <td class="p-2 border">$${w.cargasPatronales.toFixed(2)}</td>
+                            <td class="p-2 border text-slate-500 font-semibold">$${w.salarioIntegradoAnual.toFixed(2)}</td>
+                            <td class="p-2 border bg-slate-100 font-bold">$${w.salarioIntegradoDiario.toFixed(2)}</td>
+                            <td class="p-2 border bg-emerald-100 text-emerald-900 font-extrabold">$${w.chh.toFixed(2)}</td>
+                        </tr>`;
+                });
+
+                // Si la sesión iterada es la misma que la sesión actual, le ponemos un badge verde
+                const isCurrentSession = (sessionKey === state.sessionId);
+                const headerClass = isCurrentSession ? 'bg-blue-950' : 'bg-slate-700';
+                const titleBadge = isCurrentSession 
+                    ? '<span class="ml-3 px-2 py-0.5 bg-emerald-500 text-white text-[10px] rounded uppercase font-bold tracking-wide shadow-sm">Sesión Actual</span>' 
+                    : '';
+
+                const tableHTML = `
+                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                        <div class="bg-slate-100 px-4 py-3 border-b border-slate-300 flex justify-between items-center">
+                            <h3 class="font-bold text-slate-800 text-sm">📋 Grupo de Alta: <span class="font-medium text-slate-600">${sessionKey}</span> ${titleBadge}</h3>
+                            <button onclick="window.print()" class="text-xs bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition font-bold shadow-sm">
+                                🖨️ Imprimir
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse border border-slate-300 text-xs text-center">
+                                <thead class="${headerClass} text-white font-bold">
+                                    <tr>
+                                        <th class="border border-slate-300 p-2 text-left">Puesto / Trabajador</th>
+                                        <th class="border border-slate-300 p-2">Ingreso</th>
+                                        <th class="border border-slate-300 p-2">Contrato</th>
+                                        <th class="border border-slate-300 p-2">Percepción</th>
+                                        <th class="border border-slate-300 p-2">Jornada</th>
+                                        <th class="border border-slate-300 p-2">Vac.</th>
+                                        <th class="border border-slate-300 p-2">Faltas</th>
+                                        <th class="border border-slate-300 p-2">Libres (Ley)</th>
+                                        <th class="border border-slate-300 p-2 bg-blue-800/50">Días Lab.</th>
+                                        <th class="border border-slate-300 p-2">SD Real</th>
+                                        <th class="border border-slate-300 p-2">Sueldo Anual</th>
+                                        <th class="border border-slate-300 p-2">Sub. Ley</th>
+                                        <th class="border border-slate-300 p-2">Cargas Pat.</th>
+                                        <th class="border border-slate-300 p-2">Sal. Int. Anual</th>
+                                        <th class="border border-slate-300 p-2 bg-slate-900/20">Sal. Int. Diario</th>
+                                        <th class="border border-slate-300 p-2 bg-emerald-700 text-white">CHH ($)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">${tbodyHTML}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                // Insertamos el nuevo bloque en el contenedor
+                container.innerHTML += tableHTML;
+            });
+        }
 
         renderProcesosModule();
         actualizarCedulaProducto();
@@ -674,16 +731,14 @@ function calculateWorkerCHH(dailyWage, fechaIngreso, tipoJornada, faltas) {
     if (tipoJornada === 'Nocturna') jornada = 7;
     if (tipoJornada === 'Mixta') jornada = 7.5;
 
-    // Cálculo de Días (Descontando fines de semana, festivos, vacaciones y faltas)
     const diasVacaciones = calcularDiasVacaciones(fechaIngreso);
     const diasAnuales = 365;
     const domingos = 52;
     const diasFestivos = 7; 
-    const diasLibresLey = domingos + diasFestivos; // 59 días libres garantizados
+    const diasLibresLey = domingos + diasFestivos; 
     
     const diasLab = diasAnuales - diasLibresLey - diasVacaciones - faltas;
     
-    // Matemática Contable
     const sueldoAnual = dailyWage * 365;
     const aguinaldo = dailyWage * 15;
     const primaVacacional = (dailyWage * diasVacaciones) * 0.25; 
@@ -710,20 +765,28 @@ document.getElementById('worker-form')?.addEventListener('submit', async (e) => 
     const name = document.getElementById('wrk-name').value;
     const startDate = document.getElementById('wrk-date').value;
     
-    // Extracción de datos del nuevo formato de contrato
     const tipoContrato = document.getElementById('wrk-contrato').value;
     const percepcionBase = parseFloat(document.getElementById('wrk-wage').value);
     const tipoJornada = document.getElementById('wrk-jornada').value;
     const faltas = parseInt(document.getElementById('wrk-faltas').value) || 0;
 
-    // Cálculo del salario diario en base al tipo de contrato
     let dailyWage = percepcionBase;
     if (tipoContrato === 'Semanal') dailyWage = percepcionBase / 7;
     if (tipoContrato === 'Mensual') dailyWage = percepcionBase / 30;
 
     const calc = calculateWorkerCHH(dailyWage, startDate, tipoJornada, faltas);
     const newWorker = { 
-        name, startDate, tipoContrato, percepcionBase, dailyWage, ...calc, createdAt: new Date() 
+        name, 
+        startDate, 
+        tipoContrato, 
+        percepcionBase, 
+        dailyWage, 
+        ...calc, 
+        createdAt: new Date(), 
+        // --------------------------------------------------------------------------------
+        // AQUÍ SE GUARDA LA SESIÓN EN LA QUE FUE CREADO PARA MANTENER EL HISTORIAL
+        // --------------------------------------------------------------------------------
+        session: state.sessionId 
     };
 
     try {
