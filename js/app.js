@@ -431,21 +431,19 @@ window.actualizarCedulaProducto = function() {
     document.getElementById('lbl-costo-transformacion').innerText = `$${costoTransformacion.toFixed(2)} MXN`;
     document.getElementById('lbl-cedula-costo-final').innerText = `$${costoFinal.toFixed(2)} MXN`;
 
-    // AQUI ES LA REPARACIÓN DEL QR
     const qrContainer = document.getElementById('qrcode-container');
     if (qrContainer && window.QRCode) {
         qrContainer.innerHTML = '';
-        // Hacemos el texto más corto para que no explote
         const qrData = `OptiCost | Prod: ${key.toUpperCase()} | Tot: $${costoFinal.toFixed(2)} | F: ${new Date().toLocaleDateString()}`;
         
         try {
             new QRCode(qrContainer, {
                 text: qrData,
-                width: 96, // Lo hacemos un poco más grande
+                width: 96,
                 height: 96,
                 colorDark : "#0f172a",
                 colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.L // Nivel de corrección bajo para datos largos
+                correctLevel : QRCode.CorrectLevel.L
             });
         } catch (e) {
             console.warn("No se pudo generar el QR", e);
@@ -453,9 +451,6 @@ window.actualizarCedulaProducto = function() {
     }
 };
 
-// =========================================================================
-// AQUI ESTA LA FUNCIÓN QUE TE FALTABA PARA VER LA MATERIA PRIMA
-// =========================================================================
 async function renderAllCards() {
     const container = document.getElementById('cards-container');
     if (!container) return;
@@ -539,7 +534,6 @@ async function renderAllCards() {
         container.appendChild(cardWrapper);
     }
 }
-// =========================================================================
 
 async function loadProductsFromFirebase() {
     try {
@@ -801,7 +795,7 @@ document.getElementById('worker-form')?.addEventListener('submit', async (e) => 
     }
 });
 
-// IMPRESIÓN INDIVIDUAL
+// IMPRESIÓN INDIVIDUAL AJUSTADA (Modo Horizontal Automático y Celdas Adaptables)
 window.printSpecificReport = function(btn, tituloReporte = "Documento") {
     const reportCard = btn.closest('.report-card');
     const clone = reportCard.cloneNode(true);
@@ -821,16 +815,32 @@ window.printSpecificReport = function(btn, tituloReporte = "Documento") {
             <title>${tituloReporte}</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
-                body { padding: 40px; font-family: sans-serif; }
+                /* Orientación horizontal por defecto */
+                @page { size: landscape; margin: 15mm; }
+                body { padding: 20px; font-family: sans-serif; }
                 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                
+                /* Eliminar el scroll y obligar a que todo el contenido se expanda al ancho de la hoja */
+                .overflow-x-auto { overflow: visible !important; width: 100% !important; }
+                
+                /* Reducir tamaño de texto y permitir salto de línea para que las 16 columnas quepan */
+                table { width: 100% !important; table-layout: auto !important; }
+                th, td { 
+                    font-size: 8.5px !important; 
+                    padding: 4px !important; 
+                    white-space: normal !important; 
+                    word-wrap: break-word !important; 
+                }
+                .whitespace-nowrap { white-space: normal !important; }
+                
                 table { page-break-inside: auto; }
                 tr { page-break-inside: avoid; page-break-after: auto; }
             </style>
         </head>
         <body>
-            <div class="mb-6 border-b-2 border-slate-300 pb-2">
+            <div class="mb-4 border-b-2 border-slate-300 pb-2">
                 <h2 class="text-2xl font-black text-blue-950">OptiCost ERP</h2>
-                <p class="text-sm text-slate-600 font-bold">${tituloReporte} | Emitido: ${new Date().toLocaleDateString('es-MX')} a las ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'})}</p>
+                <p class="text-xs text-slate-600 font-bold">${tituloReporte} | Emitido: ${new Date().toLocaleDateString('es-MX')} a las ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
             
             ${clone.outerHTML}
