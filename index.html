@@ -36,22 +36,23 @@
 
     <!-- PANTALLA PRINCIPAL DEL SISTEMA -->
     <div id="app-screen" class="hidden">
-        <nav class="bg-blue-950 text-white px-6 py-3 flex justify-between items-center shadow-lg sticky top-0 z-50">
+        <nav class="bg-blue-950 text-white px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg sticky top-0 z-50">
             <div class="flex items-center space-x-3">
                 <span class="text-2xl">👓</span>
                 <div>
                     <h1 class="text-base font-black tracking-wide">FÁBRICA DE LENTES - COSTOS INDUSTRIALES</h1>
-                    <p class="text-[10px] text-blue-300 font-semibold">Materia Prima + Mano de Obra + Gastos Indirectos (Prorrateos)</p>
+                    <p class="text-[10px] text-blue-300 font-semibold">Materia Prima + Mano de Obra + Gastos Indirectos + Presupuestos</p>
                 </div>
             </div>
             
-            <div class="flex space-x-1 bg-blue-900/60 p-1 rounded-xl">
+            <div class="flex flex-wrap gap-1 bg-blue-900/60 p-1 rounded-xl">
                 <button onclick="switchModule('config')" id="nav-config" class="px-3 py-1.5 text-xs font-bold rounded-lg transition bg-blue-800 text-white">⚙️ Configuración</button>
                 <button onclick="switchModule('mp')" id="nav-mp" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">📦 Materia Prima</button>
                 <button onclick="switchModule('mo')" id="nav-mo" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">👷 Mano de Obra (CHH)</button>
                 <button onclick="switchModule('procesos')" id="nav-procesos" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">🏭 Rutas de Producción</button>
                 <button onclick="switchModule('prorrateo')" id="nav-prorrateo" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">📊 Prorrateos (GIF)</button>
                 <button onclick="switchModule('reportes')" id="nav-reportes" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">📑 Cédula de Integración</button>
+                <button onclick="switchModule('presupuesto')" id="nav-presupuesto" class="px-3 py-1.5 text-xs font-bold rounded-lg transition text-blue-200 hover:text-white">📈 Presupuesto</button>
             </div>
 
             <button id="logout-btn" class="text-xs bg-red-900 hover:bg-red-800 px-3 py-1.5 rounded-lg transition font-bold">Cerrar Sesión</button>
@@ -88,7 +89,7 @@
                         </div>
                     </form>
 
-                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Prestaciones de Ley & Conquistas Laborales (Referencia del Excel)</h3>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-4">Prestaciones de Ley & Conquistas Laborales (Referencia del Excel)</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                         <div class="p-3 bg-slate-50 border rounded space-y-1">
                             <p class="font-bold text-blue-900 border-b pb-1">Prestaciones Mínimas LFT</p>
@@ -531,6 +532,201 @@
                 </section>
             </div>
 
+            <!-- MÓDULO: PRESUPUESTO DE VENTAS -->
+            <div id="module-presupuesto" class="hidden space-y-6">
+                <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-3 mb-4 gap-3">
+                        <div>
+                            <h2 class="text-lg font-black text-blue-950">📈 MÓDULO DE PRESUPUESTO DE VENTAS</h2>
+                            <p class="text-xs text-slate-500 font-semibold">Reclasificación de Gastos de Producción a Costos + Estado de Resultados Histórico + Fórmula PV = [(V ± F) × E] × D</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <label class="text-xs font-bold text-slate-700">Mes Base (Excel):</label>
+                            <select id="pres-mes" onchange="cargarMesPresupuesto()" class="p-2 border border-blue-900 rounded-lg text-xs font-bold bg-blue-50 text-blue-950">
+                                <option value="ENERO">Enero</option>
+                                <option value="FEBRERO">Febrero</option>
+                                <option value="MARZO">Marzo</option>
+                                <option value="ABRIL">Abril</option>
+                                <option value="MAYO">Mayo</option>
+                                <option value="JUNIO">Junio</option>
+                                <option value="JULIO">Julio</option>
+                                <option value="AGOSTO">Agosto</option>
+                                <option value="SEPTIEMBRE">Septiembre</option>
+                                <option value="OCTUBRE">Octubre</option>
+                                <option value="NOVIEMBRE">Noviembre</option>
+                                <option value="DICIEMBRE">Diciembre</option>
+                            </select>
+                            <button type="button" onclick="resetFactoresPresupuesto()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition">
+                                Limpiar F / E / D
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Panel 1: Base Histórica -->
+                        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                            <h3 class="text-xs font-black text-blue-950 uppercase border-b pb-1">1. Historia Contable (Costos y Gastos del Excel)</h3>
+                            <div class="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Gastos Producción / GIF ($)</label>
+                                    <input type="number" step="0.01" id="pres-gif" oninput="recalcularPresupuestoUI()" class="w-full p-2 border rounded-lg font-bold bg-white">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Mano de Obra ($)</label>
+                                    <input type="number" step="0.01" id="pres-mo" oninput="recalcularPresupuestoUI()" class="w-full p-2 border rounded-lg font-bold bg-white">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Gastos de Administración ($)</label>
+                                    <input type="number" step="0.01" id="pres-admon" oninput="recalcularPresupuestoUI()" class="w-full p-2 border rounded-lg font-medium bg-white">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Gastos de Venta ($)</label>
+                                    <input type="number" step="0.01" id="pres-venta" oninput="recalcularPresupuestoUI()" class="w-full p-2 border rounded-lg font-medium bg-white">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Gastos de Distribución ($)</label>
+                                    <input type="number" step="0.01" id="pres-distrib" oninput="recalcularPresupuestoUI()" class="w-full p-2 border rounded-lg font-medium bg-white">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-blue-900 mb-1">Regla Ventas (× Costo)</label>
+                                    <input type="number" step="0.1" id="pres-mult" value="3" oninput="recalcularPresupuestoUI()" class="w-full p-2 border border-blue-300 rounded-lg font-extrabold bg-blue-50 text-blue-950">
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-4 pt-2 border-t text-xs">
+                                <label class="flex items-center gap-2 font-bold text-slate-700">
+                                    <span>Tasa ISR (%):</span>
+                                    <input type="number" id="pres-isr" value="30" step="1" oninput="recalcularPresupuestoUI()" class="w-16 p-1.5 border rounded-lg bg-white text-center font-bold">
+                                </label>
+                                <label class="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="pres-ptu" onchange="recalcularPresupuestoUI()" class="rounded">
+                                    <span>Incluir PTU (10%)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Panel 2: Factores F, E, D -->
+                        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                            <h3 class="text-xs font-black text-blue-950 uppercase border-b pb-1">2. Factores de Proyección (Internos y Externos)</h3>
+
+                            <div>
+                                <p class="text-[11px] font-extrabold text-blue-900 uppercase mb-1.5">F — Factores Específicos de Ventas (en Pesos $)</p>
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">Ajuste (±$)</label>
+                                        <input type="number" step="0.01" id="pres-f-ajuste" value="-20000" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">Cambio (±$)</label>
+                                        <input type="number" step="0.01" id="pres-f-cambio" value="35000" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">Crecimiento (±$)</label>
+                                        <input type="number" step="0.01" id="pres-f-crec" value="23662.64" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p class="text-[11px] font-extrabold text-amber-800 uppercase mb-1.5">E — Fuerzas Económicas Generales (Externos %)</p>
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">Inflación (%)</label>
+                                        <input type="number" step="0.1" id="pres-e-inf" value="4.5" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">Dólar / T.C. (%)</label>
+                                        <input type="number" step="0.1" id="pres-e-dolar" value="-1.5" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 mb-1">PIB / Otros (%)</label>
+                                        <input type="number" step="0.1" id="pres-e-otros" value="0" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p class="text-[11px] font-extrabold text-emerald-800 uppercase mb-1.5">D — Influencia Administrativa (Internos %)</p>
+                                <div class="text-xs">
+                                    <label class="block text-[10px] font-bold text-slate-600 mb-1">Publicidad, políticas de crédito, expansión de planta (±%)</label>
+                                    <input type="number" step="0.1" id="pres-d-admin" value="5" oninput="recalcularPresupuestoUI()" class="w-full p-1.5 border rounded-lg bg-white font-semibold">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CÉDULA IMPRIMIBLE DEL PRESUPUESTO -->
+                <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 report-card space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
+                        <div>
+                            <h3 class="text-lg font-black text-blue-950">CÉDULA DE PRESUPUESTO DE VENTAS — <span id="pres-titulo-mes">ENERO</span></h3>
+                            <p class="text-xs text-slate-500 font-semibold">Estado de Resultados Histórico Reclasificado y Proyección por Método de Factores</p>
+                        </div>
+                        <button onclick="printSpecificReport(this, 'Cédula de Presupuesto de Ventas')" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg transition shadow-sm">
+                            🖨️ Imprimir Cédula de Presupuesto
+                        </button>
+                    </div>
+
+                    <!-- KPIs Resumen -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                            <span class="text-[10px] font-bold uppercase text-slate-500 block">Ventas Históricas Base (V)</span>
+                            <p id="pres-kpi-v" class="text-xl font-black text-blue-950 font-mono">$0.00 MXN</p>
+                        </div>
+                        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                            <span class="text-[10px] font-bold uppercase text-slate-500 block">Utilidad Neta Histórica</span>
+                            <p id="pres-kpi-uneta" class="text-xl font-black text-emerald-700 font-mono">$0.00 MXN</p>
+                        </div>
+                        <div class="p-3.5 bg-blue-950 text-white rounded-xl shadow">
+                            <span class="text-[10px] font-bold uppercase text-blue-300 block">Ventas Presupuestadas (PV)</span>
+                            <p id="pres-kpi-pv" class="text-xl font-black text-emerald-400 font-mono">$0.00 MXN</p>
+                        </div>
+                    </div>
+
+                    <!-- Tablas y Desarrollo -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-bold text-xs uppercase text-blue-950 mb-2 border-b pb-1">1. Estado de Resultados Histórico (Base)</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full border-collapse border border-slate-300 text-xs">
+                                    <thead class="bg-blue-950 text-white font-bold">
+                                        <tr>
+                                            <th class="border border-slate-300 p-2 text-left">Concepto Contable</th>
+                                            <th class="border border-slate-300 p-2 text-right">Importe ($)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tb-pres-edo"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-xs uppercase text-blue-950 mb-2 border-b pb-1">2. Desarrollo Paso a Paso: PV = [(V ± F) × E] × D</h4>
+                            <div id="pres-pasos-formula" class="space-y-3"></div>
+                        </div>
+                    </div>
+
+                    <!-- Guía de Referencia de Factores -->
+                    <div class="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs space-y-2">
+                        <h5 class="font-bold text-amber-950 uppercase border-b border-amber-200 pb-1">📌 Guía Rápida de Clasificación de Factores en la Fórmula</h5>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-slate-700">
+                            <div class="bg-white p-2.5 rounded-lg border border-amber-200">
+                                <p class="font-bold text-blue-950 mb-1">F — Específicos (En Pesos $)</p>
+                                <p><strong>Ajuste:</strong> huelgas, pedidos únicos.<br><strong>Cambio:</strong> diseño, empaque, competidores.<br><strong>Crecimiento:</strong> tendencia orgánica del sector.</p>
+                            </div>
+                            <div class="bg-white p-2.5 rounded-lg border border-amber-200">
+                                <p class="font-bold text-amber-900 mb-1">E — Económicos (Externos %)</p>
+                                <p>Variables fuera de control de la empresa: <strong>inflación (INPC), tipo de cambio (dólar), tasas de interés, PIB y poder adquisitivo</strong>.</p>
+                            </div>
+                            <div class="bg-white p-2.5 rounded-lg border border-amber-200">
+                                <p class="font-bold text-emerald-900 mb-1">D — Administrativos (Internos %)</p>
+                                <p>Decisiones de dirección: <strong>campañas de publicidad, políticas de crédito, apertura de sucursales y ampliación de planta</strong>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
         </main>
     </div>
 
@@ -552,8 +748,8 @@
         window.fs = { collection, addDoc, getDocs, query, where, doc, updateDoc };
     </script>
 
-   <script src="js/engine.js?v=2026"></script>
-    <script src="js/app.js?v=2026"></script>
+    <script src="js/engine.js?v=2026-2"></script>
+    <script src="js/app.js?v=2026-2"></script>
     
 </body>
 </html>
