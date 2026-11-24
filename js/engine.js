@@ -1,3 +1,6 @@
+// =========================================================================
+// MOTOR DE VALUACIÓN DE INVENTARIOS (KARDEX: PEPS, UEPS, PROMEDIO)
+// =========================================================================
 class InventoryEngine {
 
     static processMovements(product, rawMovements) {
@@ -34,7 +37,9 @@ class InventoryEngine {
 
             } else if (mov.tipo === 'SALIDA') {
                 if (mov.cantidad > existencias) {
-                    alert(`Operación denegada: Stock insuficiente (${existencias} ${product.unit} disponibles).`);
+                    if (typeof showToast === 'function') {
+                        showToast(`Stock insuficiente para ${product.name} (${existencias} ${product.unit} disponibles).`, 'error');
+                    }
                     continue;
                 }
 
@@ -63,25 +68,20 @@ class InventoryEngine {
                     let cantidadPendiente = mov.cantidad;
                     let esPrimerRenglon = true;
 
-                    // Procesar capa por capa hasta cubrir la cantidad de la salida
                     while (cantidadPendiente > 0 && capas.length > 0) {
                         const index = product.metodo === 'PEPS' ? 0 : capas.length - 1;
                         const capaActual = capas[index];
 
-                        // Determinar cuántas unidades se toman de la capa actual
                         const unidadesAgotadas = Math.min(capaActual.cantidad, cantidadPendiente);
                         
-                        // Actualizar stock de la capa y pendiente global
                         capaActual.cantidad -= unidadesAgotadas;
                         cantidadPendiente -= unidadesAgotadas;
                         existencias -= unidadesAgotadas;
 
-                        // Cálculos monetarios del tramo
                         const haberSub = Number((unidadesAgotadas * capaActual.costo).toFixed(2));
                         saldo = Number((saldo - haberSub).toFixed(2));
                         totalHaber += haberSub;
 
-                        // Generar la fila (la primera mantiene los datos del documento; las subfilas indican el costo del lote)
                         renderedRows.push({
                             isSubRow: !esPrimerRenglon,
                             fecha: esPrimerRenglon ? mov.fecha : '',
@@ -98,7 +98,6 @@ class InventoryEngine {
 
                         esPrimerRenglon = false;
 
-                        // Si la capa quedó en 0, se elimina del arreglo para pasar a la siguiente
                         if (capaActual.cantidad === 0) {
                             capas.splice(index, 1);
                         }
@@ -114,23 +113,83 @@ class InventoryEngine {
 }
 
 // =========================================================================
-// MOTOR DE PRESUPUESTO DE VENTAS (RECLASIFICACIÓN HISTÓRICA + FÓRMULA PV)
+// PLANTILLA INICIAL DE 12 MESES PARA BD HISTÓRICA DE LA FÁBRICA EN FIREBASE
+// (Refleja estacionalidad real de una planta óptica mexicana)
 // =========================================================================
-const PRESUPUESTO_EXCEL_DATA = {
-    ENERO:      { gif: 98449.00,   mo: 159301.93, admon: 44041.93,    venta: 11804.00,    distrib: 49255.25 },
-    FEBRERO:    { gif: 98449.00,   mo: 159301.93, admon: 44041.93,    venta: 11804.00,    distrib: 49255.25 },
-    MARZO:      { gif: 98449.00,   mo: 159301.93, admon: 44041.93,    venta: 11804.00,    distrib: 49255.25 },
-    ABRIL:      { gif: 99708.97,   mo: 159301.93, admon: 54223.70575, venta: 32542.16703, distrib: 52055.77 },
-    MAYO:       { gif: 95199.18,   mo: 159301.93, admon: 48512.45575, venta: 35755.204,   distrib: 48104.45 },
-    JUNIO:      { gif: 90386.26,   mo: 159301.93, admon: 51500.37775, venta: 30686.4577,  distrib: 49625.709 },
-    JULIO:      { gif: 118029.58,  mo: 159301.93, admon: 50092.8135,  venta: 25471.5807,  distrib: 46301.41 },
-    AGOSTO:     { gif: 89075.64,   mo: 159301.93, admon: 54750.18,    venta: 34597.823,   distrib: 45090.2378 },
-    SEPTIEMBRE: { gif: 119997.006, mo: 159301.93, admon: 61102.6921,  venta: 33135.0574,  distrib: 44949.0928 },
-    OCTUBRE:    { gif: 119997.006, mo: 159301.93, admon: 61102.6921,  venta: 33135.0574,  distrib: 44949.0928 },
-    NOVIEMBRE:  { gif: 119997.006, mo: 159301.93, admon: 61102.6921,  venta: 33135.0574,  distrib: 44949.0928 },
-    DICIEMBRE:  { gif: 119997.006, mo: 159301.93, admon: 61102.6921,  venta: 33135.0574,  distrib: 44949.0928 }
+const OPTICAL_HISTORICAL_TEMPLATE = [
+    { mes: 'ENERO',      orden: 1,  trimestre: 'Q1', anio: 2026, gif: 84200.00,  mo: 159301.93, admon: 41200.00, venta: 14800.00, distrib: 39500.00 },
+    { mes: 'FEBRERO',    orden: 2,  trimestre: 'Q1', anio: 2026, gif: 85900.00,  mo: 159301.93, admon: 41500.00, venta: 15400.00, distrib: 40800.00 },
+    { mes: 'MARZO',      orden: 3,  trimestre: 'Q1', anio: 2026, gif: 88400.00,  mo: 159301.93, admon: 42100.00, venta: 16900.00, distrib: 42100.00 },
+    { mes: 'ABRIL',      orden: 4,  trimestre: 'Q2', anio: 2026, gif: 91800.00,  mo: 159301.93, admon: 42800.00, venta: 18900.00, distrib: 44300.00 },
+    { mes: 'MAYO',       orden: 5,  trimestre: 'Q2', anio: 2026, gif: 95400.00,  mo: 159301.93, admon: 43400.00, venta: 21200.00, distrib: 46100.00 },
+    { mes: 'JUNIO',      orden: 6,  trimestre: 'Q2', anio: 2026, gif: 93600.00,  mo: 159301.93, admon: 43100.00, venta: 19800.00, distrib: 45200.00 },
+    { mes: 'JULIO',      orden: 7,  trimestre: 'Q3', anio: 2026, gif: 104500.00, mo: 164800.00, admon: 45200.00, venta: 25400.00, distrib: 51200.00 },
+    { mes: 'AGOSTO',     orden: 8,  trimestre: 'Q3', anio: 2026, gif: 111200.00, mo: 168500.00, admon: 46800.00, venta: 28900.00, distrib: 54600.00 },
+    { mes: 'SEPTIEMBRE', orden: 9,  trimestre: 'Q3', anio: 2026, gif: 102800.00, mo: 162400.00, admon: 44900.00, venta: 24100.00, distrib: 49800.00 },
+    { mes: 'OCTUBRE',    orden: 10, trimestre: 'Q4', anio: 2026, gif: 96800.00,  mo: 159301.93, admon: 43800.00, venta: 21500.00, distrib: 47900.00 },
+    { mes: 'NOVIEMBRE',  orden: 11, trimestre: 'Q4', anio: 2026, gif: 98449.00,  mo: 159301.93, admon: 44041.93, venta: 22480.00, distrib: 49255.25 },
+    { mes: 'DICIEMBRE',  orden: 12, trimestre: 'Q4', anio: 2026, gif: 101900.00, mo: 163200.00, admon: 45600.00, venta: 24800.00, distrib: 51400.00 }
+];
+
+// =========================================================================
+// CICLOS MACROECONÓMICOS Y ESTACIONALES DEL SECTOR ÓPTICO MEXICANO (2026)
+// =========================================================================
+const OPTICAL_MARKET_CYCLES = {
+    Q1: {
+        nombre: 'Q1 (Ene–Mar) • Cuesta de Enero y Renovación Médica',
+        meses: ['ENERO', 'FEBRERO', 'MARZO'],
+        numMeses: 3,
+        cicloCorto: 'Demanda Moderada (-1.5%)',
+        descripcion: 'Q1 (Ene–Mar): Tras gastos decembrinos, la compra se concentra en reposición urgente de micas CR-39 graduadas. Inflación de insumos 4.4%, impacto USD/MXN +1.6%, PIB sector salud +2.5%.',
+        REALISTA:    { fAjuste: -18000, fCambio: 12000, fCrec: 15000,  eInf: 4.4, eDolar: 1.6, ePib: 2.5, dAdmin: -1.5, invFinal: 90 },
+        OPTIMISTA:   { fAjuste: -10000, fCambio: 22000, fCrec: 32000,  eInf: 3.9, eDolar: 0.8, ePib: 3.1, dAdmin: 2.0,  invFinal: 110 },
+        CONSERVADOR: { fAjuste: -28000, fCambio: 5000,  fCrec: 6000,   eInf: 5.1, eDolar: 2.8, ePib: 1.9, dAdmin: -3.5, invFinal: 70 }
+    },
+    Q2: {
+        nombre: 'Q2 (Abr–Jun) • Primavera, Día de Madres y Padre',
+        meses: ['ABRIL', 'MAYO', 'JUNIO'],
+        numMeses: 3,
+        cicloCorto: 'Repunte Estacional (+4.5%)',
+        descripcion: 'Q2 (Abr–Jun): Incrementa la radiación UV y campañas de regalo; sube la demanda de armazones de acetato y filtros antirreflejantes. Inflación 4.5%, USD/MXN +1.7%, PIB óptico +2.7%.',
+        REALISTA:    { fAjuste: -12000, fCambio: 28000, fCrec: 38000,  eInf: 4.5, eDolar: 1.7, ePib: 2.7, dAdmin: 4.5,  invFinal: 120 },
+        OPTIMISTA:   { fAjuste: -5000,  fCambio: 42000, fCrec: 55000,  eInf: 4.0, eDolar: 0.9, ePib: 3.2, dAdmin: 7.5,  invFinal: 140 },
+        CONSERVADOR: { fAjuste: -20000, fCambio: 15000, fCrec: 18000,  eInf: 5.2, eDolar: 2.9, ePib: 2.0, dAdmin: 1.5,  invFinal: 95 }
+    },
+    Q3: {
+        nombre: 'Q3 (Jul–Sep) • Regreso a Clases (Temporada Alta)',
+        meses: ['JULIO', 'AGOSTO', 'SEPTIEMBRE'],
+        numMeses: 3,
+        cicloCorto: 'Pico Máximo Escolar (+9.5%)',
+        descripcion: 'Q3 (Jul–Sep): Temporada más fuerte del año por exámenes visuales escolares y universitarios; máxima rotación de lentes graduados CR-39 y kits de limpieza. Inflación 4.5%, USD/MXN +1.8%, PIB +2.8%.',
+        REALISTA:    { fAjuste: -15000, fCambio: 45000, fCrec: 68000,  eInf: 4.5, eDolar: 1.8, ePib: 2.8, dAdmin: 9.5,  invFinal: 160 },
+        OPTIMISTA:   { fAjuste: -8000,  fCambio: 62000, fCrec: 92000,  eInf: 4.0, eDolar: 1.0, ePib: 3.4, dAdmin: 13.0, invFinal: 190 },
+        CONSERVADOR: { fAjuste: -24000, fCambio: 25000, fCrec: 38000,  eInf: 5.3, eDolar: 3.0, ePib: 2.1, dAdmin: 5.0,  invFinal: 130 }
+    },
+    Q4: {
+        nombre: 'Q4 (Oct–Dic) • Buen Fin y Cierre Decembrino',
+        meses: ['OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'],
+        numMeses: 3,
+        cicloCorto: 'Alta Comercial Buen Fin (+7.5%)',
+        descripcion: 'Q4 (Oct–Dic): Impulsado por Buen Fin, aguinaldos y prestaciones de fin de año en armazones de diseño y segundo par oftálmico. Inflación 4.6%, USD/MXN +2.0%, PIB +2.8%.',
+        REALISTA:    { fAjuste: -14000, fCambio: 38000, fCrec: 56000,  eInf: 4.6, eDolar: 2.0, ePib: 2.8, dAdmin: 7.5,  invFinal: 140 },
+        OPTIMISTA:   { fAjuste: -6000,  fCambio: 54000, fCrec: 78000,  eInf: 4.1, eDolar: 1.1, ePib: 3.3, dAdmin: 11.0, invFinal: 170 },
+        CONSERVADOR: { fAjuste: -22000, fCambio: 20000, fCrec: 30000,  eInf: 5.4, eDolar: 3.2, ePib: 2.1, dAdmin: 3.5,  invFinal: 110 }
+    },
+    ANUAL: {
+        nombre: 'ANUAL (12 Meses) • Consolidado Ejercicio 2026',
+        meses: ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'],
+        numMeses: 12,
+        cicloCorto: 'Ciclo Completo Anual (+5.2%)',
+        descripcion: 'Consolidado Anual 2026: Integra los 4 ciclos estacionales de la industria óptica mexicana con inflación promedio de insumos del 4.5%, ajuste cambiario USD/MXN +1.8% y crecimiento sectorial PIB +2.7%.',
+        REALISTA:    { fAjuste: -59000, fCambio: 123000, fCrec: 177000, eInf: 4.5, eDolar: 1.8, ePib: 2.7, dAdmin: 5.2, invFinal: 220 },
+        OPTIMISTA:   { fAjuste: -29000, fCambio: 180000, fCrec: 257000, eInf: 4.0, eDolar: 1.0, ePib: 3.3, dAdmin: 8.5, invFinal: 260 },
+        CONSERVADOR: { fAjuste: -94000, fCambio: 65000,  fCrec: 92000,  eInf: 5.3, eDolar: 3.0, ePib: 2.0, dAdmin: 1.8, invFinal: 175 }
+    }
 };
 
+// =========================================================================
+// MOTOR DE PRESUPUESTO MAESTRO (VENTAS PV + CÉDULA DERIVADA + TRIMESTRES)
+// =========================================================================
 class BudgetEngine {
 
     static calculate(params) {
@@ -144,7 +203,7 @@ class BudgetEngine {
         const incluirPTU = Boolean(params.incluirPTU);
         const tasaPTU = incluirPTU ? 10 : 0;
 
-        // 1. Reclasificación contable y Estado de Resultados Histórico
+        // 1. Reclasificación Contable y Estado de Resultados Histórico
         const totalCostos = gif + mo;
         const ventasHistoricas = totalCostos * multiplicadorVentas; // V
         const utilidadBruta = ventasHistoricas - totalCostos;
@@ -163,8 +222,8 @@ class BudgetEngine {
 
         const eInflacion = Number(params.eInflacion) || 0;
         const eDolar = Number(params.eDolar) || 0;
-        const eOtros = Number(params.eOtros) || 0;
-        const ePctTotal = eInflacion + eDolar + eOtros;
+        const ePib = Number(params.ePib) || 0;
+        const ePctTotal = eInflacion + eDolar + ePib;
         const factorE = 1 + (ePctTotal / 100);
         const baseVFE = baseVF * factorE;
 
@@ -172,40 +231,50 @@ class BudgetEngine {
         const factorD = 1 + (dAdminPct / 100);
         const pv = baseVFE * factorD;
 
+        // 3. Cédula Derivada del Presupuesto Maestro
+        const unitMP = Number(params.unitMP) || 0;
+        const unitMO = Number(params.unitMO) || 0;
+        const unitGIF = Number(params.unitGIF) || 0;
+        const costoUnitarioTotal = unitMP + unitMO + unitGIF;
+
+        const precioVentaUnitario = costoUnitarioTotal > 0 ? costoUnitarioTotal * multiplicadorVentas : 0;
+        const inventarioFinalDeseado = Math.max(0, Number(params.inventarioFinalDeseado) || 0);
+
+        const unidadesVender = precioVentaUnitario > 0 ? Math.ceil(pv / precioVentaUnitario) : 0;
+        const unidadesProducir = unidadesVender + inventarioFinalDeseado;
+
+        const presupuestoMP = unidadesProducir * unitMP;
+        const presupuestoMO = unidadesProducir * unitMO;
+        const presupuestoGIF = unidadesProducir * unitGIF;
+        const presupuestoCostoProduccion = presupuestoMP + presupuestoMO + presupuestoGIF;
+
+        const costoVentasProyectado = unidadesVender * costoUnitarioTotal;
+        const costoProyFinal = costoVentasProyectado > 0 ? costoVentasProyectado : (totalCostos * factorE * factorD);
+        const utilidadBrutaProy = pv - costoProyFinal;
+        const gastosOpProy = totalGastosOp * (1 + (eInflacion / 100));
+        const uaiProy = utilidadBrutaProy - gastosOpProy;
+        const isrProy = uaiProy > 0 ? uaiProy * (tasaISR / 100) : 0;
+        const ptuProy = uaiProy > 0 ? uaiProy * (tasaPTU / 100) : 0;
+        const utilidadNetaProy = uaiProy - isrProy - ptuProy;
+
         return {
             historia: {
-                gif,
-                mo,
-                totalCostos,
-                ventasHistoricas,
-                utilidadBruta,
-                admon,
-                venta,
-                distrib,
-                totalGastosOp,
-                uai,
-                isr,
-                ptu,
-                tasaISR,
-                tasaPTU,
-                utilidadNeta
+                gif, mo, totalCostos, ventasHistoricas, utilidadBruta,
+                admon, venta, distrib, totalGastosOp, uai, isr, ptu,
+                tasaISR, tasaPTU, utilidadNeta
             },
             formula: {
                 V: ventasHistoricas,
-                fAjuste,
-                fCambio,
-                fCrecimiento,
-                fNeto,
-                baseVF,
-                eInflacion,
-                eDolar,
-                eOtros,
-                ePctTotal,
-                factorE,
-                baseVFE,
-                dAdminPct,
-                factorD,
-                pv
+                fAjuste, fCambio, fCrecimiento, fNeto, baseVF,
+                eInflacion, eDolar, ePib, ePctTotal, factorE, baseVFE,
+                dAdminPct, factorD, pv
+            },
+            derivada: {
+                unitMP, unitMO, unitGIF, costoUnitarioTotal, precioVentaUnitario,
+                unidadesVender, inventarioFinalDeseado, unidadesProducir,
+                presupuestoMP, presupuestoMO, presupuestoGIF, presupuestoCostoProduccion,
+                costoVentasProyectado: costoProyFinal,
+                utilidadBrutaProy, gastosOpProy, uaiProy, isrProy, ptuProy, utilidadNetaProy
             }
         };
     }
