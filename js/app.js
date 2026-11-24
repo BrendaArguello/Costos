@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadProductsFromFirebase();
                 loadWorkersFromFirebase();
                 loadProcessesFromFirebase();
+                cargarMesPresupuesto();
             } else {
                 document.getElementById('login-error').classList.remove('hidden');
             }
@@ -139,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // NAVEGACIÓN
 window.switchModule = function(moduleName) {
-    ['config', 'mp', 'mo', 'procesos', 'prorrateo', 'reportes'].forEach(m => {
+    ['config', 'mp', 'mo', 'procesos', 'prorrateo', 'reportes', 'presupuesto'].forEach(m => {
         const mod = document.getElementById(`module-${m}`);
         if (mod) mod.classList.add('hidden');
         
@@ -156,6 +157,7 @@ window.switchModule = function(moduleName) {
     if (moduleName === 'procesos') renderProcesosModule();
     if (moduleName === 'prorrateo') calcularYRenderizarProrrateos();
     if (moduleName === 'reportes') actualizarCedulaProducto();
+    if (moduleName === 'presupuesto') recalcularPresupuestoUI();
 };
 
 window.toggleLockProcesos = function() {
@@ -794,6 +796,184 @@ document.getElementById('worker-form')?.addEventListener('submit', async (e) => 
         console.error("Error al guardar trabajador:", error);
     }
 });
+
+// =========================================================================
+// CONTROLADOR UI: MÓDULO DE PRESUPUESTO DE VENTAS
+// =========================================================================
+function formatMXN(valor) {
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(valor || 0);
+}
+
+window.cargarMesPresupuesto = function() {
+    const mesSelect = document.getElementById('pres-mes');
+    if (!mesSelect || typeof PRESUPUESTO_EXCEL_DATA === 'undefined') return;
+
+    const mes = mesSelect.value;
+    const datos = PRESUPUESTO_EXCEL_DATA[mes];
+    if (!datos) return;
+
+    document.getElementById('pres-gif').value = datos.gif;
+    document.getElementById('pres-mo').value = datos.mo;
+    document.getElementById('pres-admon').value = datos.admon;
+    document.getElementById('pres-venta').value = datos.venta;
+    document.getElementById('pres-distrib').value = datos.distrib;
+
+    recalcularPresupuestoUI();
+};
+
+window.resetFactoresPresupuesto = function() {
+    document.getElementById('pres-f-ajuste').value = 0;
+    document.getElementById('pres-f-cambio').value = 0;
+    document.getElementById('pres-f-crec').value = 0;
+    document.getElementById('pres-e-inf').value = 0;
+    document.getElementById('pres-e-dolar').value = 0;
+    document.getElementById('pres-e-otros').value = 0;
+    document.getElementById('pres-d-admin').value = 0;
+    recalcularPresupuestoUI();
+};
+
+window.recalcularPresupuestoUI = function() {
+    const mesSelect = document.getElementById('pres-mes');
+    if (!mesSelect || typeof BudgetEngine === 'undefined') return;
+
+    const mes = mesSelect.value;
+    const res = BudgetEngine.calculate({
+        gif: document.getElementById('pres-gif')?.value,
+        mo: document.getElementById('pres-mo')?.value,
+        admon: document.getElementById('pres-admon')?.value,
+        venta: document.getElementById('pres-venta')?.value,
+        distrib: document.getElementById('pres-distrib')?.value,
+        multiplicadorVentas: document.getElementById('pres-mult')?.value,
+        tasaISR: document.getElementById('pres-isr')?.value,
+        incluirPTU: document.getElementById('pres-ptu')?.checked,
+        fAjuste: document.getElementById('pres-f-ajuste')?.value,
+        fCambio: document.getElementById('pres-f-cambio')?.value,
+        fCrecimiento: document.getElementById('pres-f-crec')?.value,
+        eInflacion: document.getElementById('pres-e-inf')?.value,
+        eDolar: document.getElementById('pres-e-dolar')?.value,
+        eOtros: document.getElementById('pres-e-otros')?.value,
+        dAdminPct: document.getElementById('pres-d-admin')?.value
+    });
+
+    const h = res.historia;
+    const f = res.formula;
+
+    const tituloMes = document.getElementById('pres-titulo-mes');
+    if (tituloMes) tituloMes.innerText = mes;
+
+    const kpiPV = document.getElementById('pres-kpi-pv');
+    if (kpiPV) kpiPV.innerText = `${formatMXN(f.pv)} MXN`;
+
+    const kpiV = document.getElementById('pres-kpi-v');
+    if (kpiV) kpiV.innerText = `${formatMXN(h.ventasHistoricas)} MXN`;
+
+    const kpiUneta = document.getElementById('pres-kpi-uneta');
+    if (kpiUneta) kpiUneta.innerText = `${formatMXN(h.utilidadNeta)} MXN`;
+
+    const tbodyEdo = document.getElementById('tb-pres-edo');
+    if (tbodyEdo) {
+        const labelImp = h.tasaPTU > 0 ? `ISR (${h.tasaISR}%) + PTU (${h.tasaPTU}%)` : `ISR (${h.tasaISR}%)`;
+        tbodyEdo.innerHTML = `
+            <tr class="bg-blue-50/70 font-extrabold text-blue-950">
+                <td class="border border-slate-300 p-2 text-left">Ventas Históricas del Mes (V)</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.ventasHistoricas)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left pl-4 text-slate-600">• Gastos de Producción reclasificados a Costos (GIF)</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-slate-600">${formatMXN(h.gif)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left pl-4 text-slate-600">• Mano de Obra (Sueldos + Salarios)</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-slate-600">${formatMXN(h.mo)}</td>
+            </tr>
+            <tr class="font-bold text-slate-800 bg-slate-50">
+                <td class="border border-slate-300 p-2 text-left">(-) Total Costos de Producción</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.totalCostos)}</td>
+            </tr>
+            <tr class="font-extrabold text-blue-950 bg-slate-100">
+                <td class="border border-slate-300 p-2 text-left">(=) Utilidad Bruta</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.utilidadBruta)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left pl-4 text-slate-600">• Gastos de Administración</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-slate-600">${formatMXN(h.admon)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left pl-4 text-slate-600">• Gastos de Venta</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-slate-600">${formatMXN(h.venta)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left pl-4 text-slate-600">• Gastos de Distribución</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-slate-600">${formatMXN(h.distrib)}</td>
+            </tr>
+            <tr class="font-bold text-slate-800 bg-slate-50">
+                <td class="border border-slate-300 p-2 text-left">(-) Total Gastos de Operación</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.totalGastosOp)}</td>
+            </tr>
+            <tr class="font-extrabold text-indigo-950 bg-slate-100">
+                <td class="border border-slate-300 p-2 text-left">(=) Utilidad Antes de Impuestos (UAI)</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.uai)}</td>
+            </tr>
+            <tr>
+                <td class="border border-slate-300 p-2 text-left text-slate-600">(-) ${labelImp}</td>
+                <td class="border border-slate-300 p-2 text-right font-mono text-red-700">${formatMXN(h.isr + h.ptu)}</td>
+            </tr>
+            <tr class="font-black text-emerald-900 bg-emerald-100">
+                <td class="border border-slate-300 p-2 text-left">(=) UTILIDAD NETA HISTÓRICA</td>
+                <td class="border border-slate-300 p-2 text-right font-mono">${formatMXN(h.utilidadNeta)}</td>
+            </tr>
+        `;
+    }
+
+    const pasosContainer = document.getElementById('pres-pasos-formula');
+    if (pasosContainer) {
+        const signoF = f.fNeto >= 0 ? '+' : '-';
+        const signoE = f.ePctTotal >= 0 ? '+' : '';
+        const signoD = f.dAdminPct >= 0 ? '+' : '';
+
+        pasosContainer.innerHTML = `
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-300">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-extrabold text-blue-950 text-xs">Paso 1: Ajuste por Factores Específicos (V ± F)</span>
+                    <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold">F neto: ${formatMXN(f.fNeto)}</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mb-1">Ajuste (${formatMXN(f.fAjuste)}) + Cambio (${formatMXN(f.fCambio)}) + Crecimiento (${formatMXN(f.fCrecimiento)})</p>
+                <p class="font-mono text-xs text-slate-800">${formatMXN(f.V)} ${signoF} ${formatMXN(Math.abs(f.fNeto))} = <strong class="text-blue-950">${formatMXN(f.baseVF)}</strong></p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-amber-50 border border-amber-300">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-extrabold text-amber-950 text-xs">Paso 2: Fuerzas Económicas Generales (× E)</span>
+                    <span class="px-2 py-0.5 rounded bg-amber-200 text-amber-950 text-[10px] font-bold">E = ${f.factorE.toFixed(4)} (${signoE}${f.ePctTotal.toFixed(2)}%)</span>
+                </div>
+                <p class="text-[11px] text-amber-900 mb-1">Inflación (${f.eInflacion}%) + Dólar/T.C. (${f.eDolar}%) + PIB/Otros (${f.eOtros}%)</p>
+                <p class="font-mono text-xs text-slate-800">${formatMXN(f.baseVF)} × ${f.factorE.toFixed(4)} = <strong class="text-amber-950">${formatMXN(f.baseVFE)}</strong></p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-300">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-extrabold text-emerald-950 text-xs">Paso 3: Influencia Administrativa (× D)</span>
+                    <span class="px-2 py-0.5 rounded bg-emerald-200 text-emerald-950 text-[10px] font-bold">D = ${f.factorD.toFixed(4)} (${signoD}${f.dAdminPct.toFixed(2)}%)</span>
+                </div>
+                <p class="text-[11px] text-emerald-900 mb-1">Decisiones internas de dirección (publicidad, crédito, rutas, capacidad)</p>
+                <p class="font-mono text-xs text-slate-800">${formatMXN(f.baseVFE)} × ${f.factorD.toFixed(4)} = <strong class="text-emerald-900 text-sm">${formatMXN(f.pv)}</strong></p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-blue-950 text-white flex justify-between items-center shadow">
+                <div>
+                    <span class="text-[10px] uppercase tracking-wider text-blue-300 font-bold block">Resultado Final Presupuesto de Ventas (${mes})</span>
+                    <span class="text-xs font-mono text-blue-200">PV = [(V ± F) × E] × D</span>
+                </div>
+                <span class="text-xl font-black text-emerald-400 font-mono">${formatMXN(f.pv)}</span>
+            </div>
+        `;
+    }
+};
 
 // IMPRESIÓN INDIVIDUAL AJUSTADA (Modo Horizontal Automático y Celdas Adaptables)
 window.printSpecificReport = function(btn, tituloReporte = "Documento") {
